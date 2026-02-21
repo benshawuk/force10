@@ -1,0 +1,43 @@
+{
+  "name": "@force10/client",
+  "version": "0.1.0",
+  "description": "Force10 client — instant Inertia.js navigations",
+  "license": "MIT",
+  "author": "Ben Shaw",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/benshawuk/force10.git",
+    "directory": "packages/client"
+  },
+  "keywords": ["inertia", "inertiajs", "laravel", "navigation", "cache", "swr", "instant"],
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "prepublishOnly": "tsup"
+  },
+  "peerDependencies": {
+    "@inertiajs/core": "^2.0.0"
+  },
+  "devDependencies": {
+    "@inertiajs/core": "^2.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  }
+}

@@ -1,0 +1,22 @@
+name: Split Laravel Package
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  split:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: symplify/monorepo-split-github-action@v2.3
+        with:
+          package_directory: packages/laravel
+          repository_organization: benshawuk
+          repository_name: force10-laravel
+        env:
+          GITHUB_TOKEN: ${{ secrets.SPLIT_TOKEN }}

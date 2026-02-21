@@ -1,0 +1,45 @@
+{
+  "name": "force10/laravel",
+  "description": "Force10 Laravel package — route manifest generation for instant Inertia.js navigations",
+  "type": "library",
+  "license": "MIT",
+  "homepage": "https://github.com/benshawuk/force10-laravel",
+  "keywords": ["laravel", "inertia", "inertiajs", "navigation", "instant", "cache"],
+  "support": {
+    "issues": "https://github.com/benshawuk/force10/issues",
+    "source": "https://github.com/benshawuk/force10-laravel"
+  },
+  "require": {
+    "php": "^8.2",
+    "laravel/framework": "^12.0",
+    "inertiajs/inertia-laravel": "^2.0"
+  },
+  "require-dev": {
+    "orchestra/testbench": "^10.0",
+    "pestphp/pest": "^3.0"
+  },
+  "autoload": {
+    "psr-4": {
+      "Force10\\Laravel\\": "src/"
+    }
+  },
+  "autoload-dev": {
+    "psr-4": {
+      "Force10\\Laravel\\Tests\\": "tests/"
+    }
+  },
+  "extra": {
+    "laravel": {
+      "providers": [
+        "Force10\\Laravel\\Force10ServiceProvider"
+      ]
+    }
+  },
+  "minimum-stability": "stable",
+  "prefer-stable": true,
+  "config": {
+    "allow-plugins": {
+      "pestphp/pest-plugin": true
+    }
+  }
+}
