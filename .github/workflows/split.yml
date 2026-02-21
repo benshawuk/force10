@@ -1,0 +1,39 @@
+name: Split Laravel Package
+
+on:
+  push:
+    branches:
+      - main
+    tags:
+      - 'v*'
+
+jobs:
+  split:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - if: "!startsWith(github.ref, 'refs/tags/')"
+        uses: danharrin/monorepo-split-github-action@v2.4.4
+        with:
+          package_directory: packages/laravel
+          repository_organization: benshawuk
+          repository_name: force10-laravel
+          user_name: benshawuk
+          user_email: benshawuk@users.noreply.github.com
+        env:
+          GITHUB_TOKEN: ${{ secrets.SPLIT_TOKEN }}
+
+      - if: "startsWith(github.ref, 'refs/tags/')"
+        uses: danharrin/monorepo-split-github-action@v2.4.4
+        with:
+          tag: ${{ github.ref_name }}
+          package_directory: packages/laravel
+          repository_organization: benshawuk
+          repository_name: force10-laravel
+          user_name: benshawuk
+          user_email: benshawuk@users.noreply.github.com
+        env:
+          GITHUB_TOKEN: ${{ secrets.SPLIT_TOKEN }}

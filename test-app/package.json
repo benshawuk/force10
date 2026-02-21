@@ -1,0 +1,32 @@
+{
+    "name": "force10-test-app",
+    "$schema": "https://www.schemastore.org/package.json",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "build": "vite build",
+        "dev": "vite",
+        "test:e2e": "playwright test"
+    },
+    "devDependencies": {
+        "@playwright/test": "^1.58.2",
+        "@tailwindcss/vite": "^4.0.0",
+        "@types/react": "^19.2.14",
+        "@types/react-dom": "^19.2.3",
+        "@vitejs/plugin-react": "^5.1.4",
+        "axios": "^1.11.0",
+        "concurrently": "^9.0.1",
+        "laravel-vite-plugin": "^2.0.0",
+        "tailwindcss": "^4.0.0",
+        "typescript": "^5.9.3",
+        "vite": "^7.0.7"
+    },
+    "dependencies": {
+        "@force10/client": "workspace:*",
+        "@inertiajs/core": "^2.3.15",
+        "@inertiajs/react": "^2.3.15",
+        "force10-vite": "workspace:*",
+        "react": "^19.2.4",
+        "react-dom": "^19.2.4"
+    }
+}

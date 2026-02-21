@@ -1,0 +1,14 @@
+{
+  "name": "force10",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "test-app"
+  ],
+  "scripts": {
+    "build": "bun run --filter '*' build",
+    "test": "bun run test:client && bun run test:php",
+    "test:client": "cd packages/client && bunx vitest run",
+    "test:php": "cd packages/laravel && ./vendor/bin/pest"
+  }
+}
