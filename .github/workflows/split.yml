@@ -13,10 +13,12 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: symplify/monorepo-split-github-action@v2.3
+      - uses: danharrin/monorepo-split-github-action@v2.4.4
         with:
           package_directory: packages/laravel
           repository_organization: benshawuk
           repository_name: force10-laravel
+          user_name: benshawuk
+          user_email: benshawuk@users.noreply.github.com
         env:
           GITHUB_TOKEN: ${{ secrets.SPLIT_TOKEN }}
