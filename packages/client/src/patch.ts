@@ -1,5 +1,5 @@
 import { router } from '@inertiajs/core';
-import type { Force10Cache, Force10Config, Force10Matcher, Force10Navigator, Force10Patch } from './types';
+import type { Force10Cache, Force10Config, Force10Matcher, Force10Navigator, Force10Patch, Force10Preflight } from './types';
 import { log } from './debug';
 
 export function applyPatch(
@@ -7,6 +7,7 @@ export function applyPatch(
   matcher: Force10Matcher,
   cache: Force10Cache,
   config: Force10Config,
+  preflight?: Force10Preflight,
 ): Force10Patch {
   const originalVisit = router.visit;
   let cancelPendingBackground: (() => void) | null = null;
@@ -86,6 +87,32 @@ export function applyPatch(
     const cached = cache.getOrStale(match.url);
     log(`CACHE: ${cached ? (cached.isStale ? 'STALE' : 'FRESH') : 'MISS'} for ${match.url}`);
 
+    // Cache-gating: when preflight has no opinion (null) and cache is empty,
+    // fall through to normal Inertia but seed cache on success
+    if (!cached && preflight) {
+      const preflightResult = preflight.check(match.route.middleware);
+      if (preflightResult === null) {
+        log(`PASSTHROUGH: no cache and no preflight data for ${match.url}`);
+
+        const passthroughOptions: Record<string, any> = {
+          ...options,
+          onSuccess: (page: any) => {
+            if (page.props?._force10?.preflight) {
+              preflight.update(page.props._force10.preflight);
+            }
+            if (page.component === match.route.component) {
+              cache.set(match.url, { component: page.component, props: page.props, url: page.url, timestamp: Date.now() });
+            }
+            if (options?.onSuccess) options.onSuccess(page);
+          },
+          onError: (errors: any) => {
+            if (options?.onError) options.onError(errors);
+          },
+        };
+        return originalVisit.call(router, href, passthroughOptions);
+      }
+    }
+
     // Build background request options
     const backgroundOptions: Record<string, any> = {
       ...options,
@@ -94,6 +121,20 @@ export function applyPatch(
       showProgress: false,
       onSuccess: (page: any) => {
         log(`SUCCESS: server responded for ${page.url}`, { component: page.component, propKeys: Object.keys(page.props || {}) });
+
+        // Update preflight data from response
+        if (preflight && page.props?._force10?.preflight) {
+          preflight.update(page.props._force10.preflight);
+        }
+
+        // Mismatch detection: server returned a different component (e.g., middleware redirected)
+        if (page.component !== match.route.component) {
+          log(`MISMATCH: expected ${match.route.component}, got ${page.component}`);
+          cache.remove(match.url);
+          navigator.setLoaded();
+          if (options?.onSuccess) options.onSuccess(page);
+          return;
+        }
 
         // Update cache with real server data
         cache.set(match.url, {

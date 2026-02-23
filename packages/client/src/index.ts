@@ -3,6 +3,7 @@ import { createConfig } from './config';
 import { createCache } from './cache';
 import { createMatcher } from './matcher';
 import { createNavigator } from './navigator';
+import { createPreflight } from './preflight';
 import { applyPatch } from './patch';
 import { log, warn } from './debug';
 
@@ -48,11 +49,19 @@ export function initForce10(
   // Create module instances
   const cache = createCache(resolvedConfig);
   const matcher = createMatcher(manifest, resolvedConfig);
-  const navigator = createNavigator(cache, resolvedConfig);
+  const preflight = createPreflight();
+  const navigator = createNavigator(cache, resolvedConfig, preflight);
   _navigator = navigator;
 
+  // Read initial preflight data from current page
+  const currentPage = typeof window !== 'undefined' ? window.history.state?.page : undefined;
+  const f10Data = currentPage?.props?._force10;
+  if (f10Data?.preflight) {
+    preflight.update(f10Data.preflight);
+  }
+
   // Apply the router patch
-  const patch = applyPatch(navigator, matcher, cache, resolvedConfig);
+  const patch = applyPatch(navigator, matcher, cache, resolvedConfig, preflight);
 
   _initialized = true;
   log(`Initialized with ${manifest.routes.length} routes.`);

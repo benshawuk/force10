@@ -67,6 +67,21 @@ return [
     |
     */
 
+    /*
+    |--------------------------------------------------------------------------
+    | Preflight
+    |--------------------------------------------------------------------------
+    |
+    | Enable server-side middleware state evaluation. When enabled, Force10
+    | shares middleware pass/fail state with the client so it can predict
+    | whether optimistic navigation is safe (e.g., skip if password
+    | confirmation is required).
+    |
+    */
+    'preflight' => [
+        'enabled' => env('FORCE10_PREFLIGHT', true),
+    ],
+
     // Path to your pages directory (relative to project root)
     'pages_directory' => 'resources/js/pages',
 

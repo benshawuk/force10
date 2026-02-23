@@ -132,6 +132,22 @@ export interface NavigateOptions {
 }
 
 /**
+ * Result of a single middleware preflight evaluation
+ */
+export interface PreflightResult {
+  pass: boolean;
+  expiresAt?: number;
+}
+
+/**
+ * Preflight module — checks server-evaluated middleware state
+ */
+export interface Force10Preflight {
+  update(data: Record<string, PreflightResult>): void;
+  check(middleware: string[]): boolean | null;
+}
+
+/**
  * Router patch interface
  */
 export interface Force10Patch {

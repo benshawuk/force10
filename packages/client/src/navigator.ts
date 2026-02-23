@@ -1,8 +1,8 @@
 import { router } from '@inertiajs/core';
-import type { Force10Cache, Force10Config, Force10Navigator, MatchResult, NavigateOptions } from './types';
+import type { Force10Cache, Force10Config, Force10Navigator, Force10Preflight, MatchResult, NavigateOptions } from './types';
 import { log } from './debug';
 
-export function createNavigator(cache: Force10Cache, config: Force10Config): Force10Navigator {
+export function createNavigator(cache: Force10Cache, config: Force10Config, preflight?: Force10Preflight): Force10Navigator {
   let _isLoading = false;
 
   function optimisticNavigate(match: MatchResult, options?: NavigateOptions): void {
@@ -49,12 +49,20 @@ export function createNavigator(cache: Force10Cache, config: Force10Config): For
   }
 
   function shouldOptimisticallyNavigate(match: MatchResult): boolean {
-    // Check if Force10 is enabled
     if (!config.enabled) {
       return false;
     }
 
-    // Check auth: if route has 'auth' middleware and user is not authenticated, skip
+    // Layer 1: Preflight — server-evaluated middleware state
+    if (preflight) {
+      const preflightResult = preflight.check(match.route.middleware);
+      if (preflightResult === false) {
+        log('SKIP: preflight says middleware will redirect');
+        return false;
+      }
+    }
+
+    // Fallback: auth check from page props (covers case where preflight data hasn't loaded yet)
     if (match.route.middleware.includes('auth')) {
       const currentPage = typeof window !== 'undefined' ? window.history.state?.page : undefined;
       const authProps = (currentPage?.props as any)?.auth;

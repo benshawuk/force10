@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { createNavigator } from '../src/navigator';
-import type { Force10Cache, Force10Config, MatchResult, CachedPage } from '../src/types';
+import type { Force10Cache, Force10Config, Force10Preflight, MatchResult, CachedPage } from '../src/types';
 import { defaultConfig } from '../src/config';
 
 // Mock @inertiajs/core
@@ -35,6 +35,13 @@ function makeCache(getResult: { page: CachedPage; isStale: boolean } | null = nu
     getOrStale: vi.fn().mockReturnValue(getResult),
     invalidateByPattern: vi.fn(),
     updateProps: vi.fn(),
+  };
+}
+
+function makePreflight(checkResult: boolean | null = true): Force10Preflight {
+  return {
+    update: vi.fn(),
+    check: vi.fn().mockReturnValue(checkResult),
   };
 }
 
@@ -172,5 +179,43 @@ describe('navigator', () => {
     expect(navigator.isLoading()).toBe(true);
     navigator.setLoaded();
     expect(navigator.isLoading()).toBe(false);
+  });
+
+  it('returns false when preflight says middleware will redirect', () => {
+    const preflight = makePreflight(false);
+    const match = makeMatch({
+      route: { pattern: '/settings', component: 'Settings/TwoFactor', middleware: ['auth', 'password.confirm'], parameters: [] },
+    });
+    const navigator = createNavigator(makeCache(), makeConfig(), preflight);
+    expect(navigator.shouldOptimisticallyNavigate(match)).toBe(false);
+    expect(preflight.check).toHaveBeenCalledWith(['auth', 'password.confirm']);
+  });
+
+  it('returns true when preflight passes', () => {
+    const preflight = makePreflight(true);
+    const match = makeMatch({
+      route: { pattern: '/settings', component: 'Settings/TwoFactor', middleware: ['auth', 'password.confirm'], parameters: [] },
+    });
+    const navigator = createNavigator(makeCache(), makeConfig(), preflight);
+    expect(navigator.shouldOptimisticallyNavigate(match)).toBe(true);
+  });
+
+  it('falls through to auth check when preflight returns null', () => {
+    // Preflight has no opinion, but auth check should still work
+    const preflight = makePreflight(null);
+    const match = makeMatch({
+      route: { pattern: '/dashboard', component: 'Dashboard', middleware: ['auth'], parameters: [] },
+    });
+
+    // User is authenticated (from beforeEach window state)
+    const navigator = createNavigator(makeCache(), makeConfig(), preflight);
+    expect(navigator.shouldOptimisticallyNavigate(match)).toBe(true);
+
+    // User not authenticated
+    (globalThis as any).window = {
+      history: { state: { page: { component: 'Login', url: '/login', props: { auth: { user: null } } } } },
+      location: { origin: 'http://localhost' },
+    };
+    expect(navigator.shouldOptimisticallyNavigate(match)).toBe(false);
   });
 });

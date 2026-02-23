@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { applyPatch } from '../src/patch';
-import type { Force10Cache, Force10Config, Force10Matcher, Force10Navigator, MatchResult } from '../src/types';
+import type { Force10Cache, Force10Config, Force10Matcher, Force10Navigator, Force10Preflight, MatchResult } from '../src/types';
 import { defaultConfig } from '../src/config';
 
 const { mockVisit, mockOn, mockOnCleanup } = vi.hoisted(() => {
@@ -60,6 +60,13 @@ function makeCache(): Force10Cache {
     getOrStale: vi.fn(),
     invalidateByPattern: vi.fn(),
     updateProps: vi.fn(),
+  };
+}
+
+function makePreflight(checkResult: boolean | null = true): Force10Preflight {
+  return {
+    update: vi.fn(),
+    check: vi.fn().mockReturnValue(checkResult),
   };
 }
 
@@ -436,5 +443,165 @@ describe('patch', () => {
     // Timeout should not fire the background
     vi.advanceTimersByTime(100);
     expect(mockVisit).not.toHaveBeenCalled();
+  });
+
+  it('skips optimistic nav when preflight returns false', () => {
+    const navigator = makeNavigator();
+    (navigator.shouldOptimisticallyNavigate as any).mockReturnValue(false);
+    const match = makeMatch();
+    const preflight = makePreflight(false);
+    const patch = applyPatch(navigator, makeMatcher(match), makeCache(), makeConfig(), preflight);
+
+    router.visit('/users');
+
+    // Should fall through to original visit directly
+    expect(navigator.optimisticNavigate).not.toHaveBeenCalled();
+    expect(mockVisit).toHaveBeenCalledWith('/users', undefined);
+    patch.remove();
+  });
+
+  it('optimistic navigates when preflight returns true and cache misses', () => {
+    const navigator = makeNavigator();
+    const match = makeMatch();
+    const preflight = makePreflight(true);
+    const patch = applyPatch(navigator, makeMatcher(match), makeCache(), makeConfig(), preflight);
+
+    router.visit('/users');
+
+    // Preflight passes, so optimistic nav should happen even on cache miss
+    expect(navigator.optimisticNavigate).toHaveBeenCalledWith(match, undefined);
+    patch.remove();
+  });
+
+  it('falls through to normal Inertia when preflight returns null and cache misses', () => {
+    const navigator = makeNavigator();
+    const match = makeMatch();
+    const cache = makeCache();
+    (cache.getOrStale as any).mockReturnValue(null);
+    const preflight = makePreflight(null);
+    const patch = applyPatch(navigator, makeMatcher(match), cache, makeConfig(), preflight);
+
+    router.visit('/users');
+
+    // No optimistic nav — passthrough to original visit
+    expect(navigator.optimisticNavigate).not.toHaveBeenCalled();
+    expect(mockVisit).toHaveBeenCalledWith(
+      '/users',
+      expect.objectContaining({ onSuccess: expect.any(Function) }),
+    );
+    patch.remove();
+  });
+
+  it('passthrough seeds cache when component matches', () => {
+    const navigator = makeNavigator();
+    const match = makeMatch();
+    const cache = makeCache();
+    (cache.getOrStale as any).mockReturnValue(null);
+    const preflight = makePreflight(null);
+    const patch = applyPatch(navigator, makeMatcher(match), cache, makeConfig(), preflight);
+
+    router.visit('/users');
+
+    const visitOptions = mockVisit.mock.calls[0][1];
+    const page = { component: 'Users/Index', props: { users: [] }, url: '/users' };
+    visitOptions.onSuccess(page);
+
+    expect(cache.set).toHaveBeenCalledWith('/users', expect.objectContaining({
+      component: 'Users/Index',
+      props: { users: [] },
+      url: '/users',
+    }));
+    patch.remove();
+  });
+
+  it('passthrough does not seed cache when component mismatches (redirect)', () => {
+    const navigator = makeNavigator();
+    const match = makeMatch();
+    const cache = makeCache();
+    (cache.getOrStale as any).mockReturnValue(null);
+    const preflight = makePreflight(null);
+    const patch = applyPatch(navigator, makeMatcher(match), cache, makeConfig(), preflight);
+
+    router.visit('/users');
+
+    const visitOptions = mockVisit.mock.calls[0][1];
+    // Server returned a different component (redirect happened)
+    const page = { component: 'Auth/ConfirmPassword', props: {}, url: '/confirm-password' };
+    visitOptions.onSuccess(page);
+
+    expect(cache.set).not.toHaveBeenCalled();
+    patch.remove();
+  });
+
+  it('passthrough updates preflight from response', () => {
+    const navigator = makeNavigator();
+    const match = makeMatch();
+    const cache = makeCache();
+    (cache.getOrStale as any).mockReturnValue(null);
+    const preflight = makePreflight(null);
+    const patch = applyPatch(navigator, makeMatcher(match), cache, makeConfig(), preflight);
+
+    router.visit('/users');
+
+    const visitOptions = mockVisit.mock.calls[0][1];
+    const page = {
+      component: 'Users/Index',
+      props: { users: [], _force10: { preflight: { auth: { pass: true } } } },
+      url: '/users',
+    };
+    visitOptions.onSuccess(page);
+
+    expect(preflight.update).toHaveBeenCalledWith({ auth: { pass: true } });
+    patch.remove();
+  });
+
+  it('background response updates preflight data', () => {
+    const navigator = makeNavigator();
+    const cache = makeCache();
+    const match = makeMatch();
+    const preflight = makePreflight(true);
+    const patch = applyPatch(navigator, makeMatcher(match), cache, makeConfig(), preflight);
+
+    router.visit('/users');
+    triggerNavigate();
+
+    const visitOptions = mockVisit.mock.calls[0][1];
+    const page = {
+      component: 'Users/Index',
+      props: { users: [], _force10: { preflight: { auth: { pass: true } } } },
+      url: '/users',
+      version: '1',
+    };
+    visitOptions.onSuccess(page);
+
+    expect(preflight.update).toHaveBeenCalledWith({ auth: { pass: true } });
+    patch.remove();
+  });
+
+  it('background mismatch removes cache entry and stops loading', () => {
+    const navigator = makeNavigator();
+    const cache = makeCache();
+    const match = makeMatch();
+    const preflight = makePreflight(true);
+    const patch = applyPatch(navigator, makeMatcher(match), cache, makeConfig(), preflight);
+
+    router.visit('/users');
+    triggerNavigate();
+
+    const visitOptions = mockVisit.mock.calls[0][1];
+    // Server returned a different component (middleware redirected after state changed)
+    const page = {
+      component: 'Auth/ConfirmPassword',
+      props: {},
+      url: '/confirm-password',
+      version: '1',
+    };
+    visitOptions.onSuccess(page);
+
+    expect(cache.remove).toHaveBeenCalledWith('/users');
+    expect(navigator.setLoaded).toHaveBeenCalled();
+    // Should NOT cache the mismatched response under the original URL
+    expect(cache.set).not.toHaveBeenCalled();
+    patch.remove();
   });
 });
