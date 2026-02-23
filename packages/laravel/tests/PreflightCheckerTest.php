@@ -131,6 +131,34 @@ it('handles middleware with parameters by matching base name', function () {
         ->and($results['auth:sanctum']['pass'])->toBeTrue();
 });
 
+it('falls back to default guard when specified guard is not configured', function () {
+    // auth:nonexistent should fall back to default guard (which has no user)
+    $results = $this->checker->evaluate($this->request, ['auth:nonexistent']);
+
+    expect($results)->toHaveKey('auth:nonexistent')
+        ->and($results['auth:nonexistent']['pass'])->toBeFalse();
+
+    // Now authenticate and verify fallback works
+    $this->actingAs(makeUser());
+    $results = $this->checker->evaluate($this->request, ['auth:nonexistent']);
+
+    expect($results['auth:nonexistent']['pass'])->toBeTrue();
+});
+
+it('uses specified guard when it exists in auth config', function () {
+    // Configure a custom guard
+    config(['auth.guards.custom' => [
+        'driver' => 'session',
+        'provider' => 'users',
+    ]]);
+
+    // No user authenticated on custom guard
+    $results = $this->checker->evaluate($this->request, ['auth:custom']);
+
+    expect($results)->toHaveKey('auth:custom')
+        ->and($results['auth:custom']['pass'])->toBeFalse();
+});
+
 // Helper to create a user for testing
 function makeUser(bool $emailVerified = true): \Illuminate\Foundation\Auth\User
 {

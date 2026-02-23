@@ -261,13 +261,15 @@ describe('patch', () => {
 
   it('handles URL object input', () => {
     const navigator = makeNavigator();
-    const match = makeMatch();
-    const patch = applyPatch(navigator, makeMatcher(match), makeCache(), makeConfig());
+    const match = makeMatch('Users/Index', '/users?page=2');
+    const matcher = makeMatcher(match);
+    const patch = applyPatch(navigator, matcher, makeCache(), makeConfig());
 
-    const url = new URL('http://localhost/users');
+    const url = new URL('http://localhost/users?page=2#team');
     router.visit(url as any);
 
-    expect(navigator.optimisticNavigate).toHaveBeenCalled();
+    expect(matcher.match).toHaveBeenCalledWith('/users?page=2');
+    expect(navigator.optimisticNavigate).toHaveBeenCalledWith(match, undefined);
     patch.remove();
   });
 
@@ -300,6 +302,32 @@ describe('patch', () => {
     router.visit('https://external.com/page');
 
     expect(navigator.optimisticNavigate).not.toHaveBeenCalled();
+    patch.remove();
+  });
+
+  it('skips URLs excluded by config matcher', () => {
+    const navigator = makeNavigator();
+    const matcher = makeMatcher(makeMatch());
+    (matcher.isExcluded as any).mockReturnValue(true);
+    const patch = applyPatch(navigator, matcher, makeCache(), makeConfig());
+
+    router.visit('/admin');
+
+    expect(navigator.optimisticNavigate).not.toHaveBeenCalled();
+    expect(mockVisit).toHaveBeenCalledWith('/admin', undefined);
+    patch.remove();
+  });
+
+  it('matches same-origin absolute URL strings with query intact', () => {
+    const navigator = makeNavigator();
+    const match = makeMatch('Users/Index', '/users?page=2');
+    const matcher = makeMatcher(match);
+    const patch = applyPatch(navigator, matcher, makeCache(), makeConfig());
+
+    router.visit('http://localhost/users?page=2');
+
+    expect(matcher.match).toHaveBeenCalledWith('/users?page=2');
+    expect(navigator.optimisticNavigate).toHaveBeenCalledWith(match, undefined);
     patch.remove();
   });
 
@@ -602,6 +630,29 @@ describe('patch', () => {
     expect(navigator.setLoaded).toHaveBeenCalled();
     // Should NOT cache the mismatched response under the original URL
     expect(cache.set).not.toHaveBeenCalled();
+    patch.remove();
+  });
+
+  it('stores query-specific cache keys for absolute URL navigations', () => {
+    const navigator = makeNavigator();
+    const cache = makeCache();
+    const match = makeMatch('Users/Index', '/users?page=2');
+    const matcher = makeMatcher(match);
+    const patch = applyPatch(navigator, matcher, cache, makeConfig());
+
+    router.visit('http://localhost/users?page=2');
+    triggerNavigate();
+
+    const visitOptions = mockVisit.mock.calls[0][1];
+    const page = {
+      component: 'Users/Index',
+      props: { users: [] },
+      url: '/users?page=2',
+      version: '1',
+    };
+    visitOptions.onSuccess(page);
+
+    expect(cache.set).toHaveBeenCalledWith('/users?page=2', expect.objectContaining({ url: '/users?page=2' }));
     patch.remove();
   });
 });

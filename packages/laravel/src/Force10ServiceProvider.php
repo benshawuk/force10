@@ -45,7 +45,7 @@ class Force10ServiceProvider extends ServiceProvider
             ]);
         }
 
-        if (config('force10.preflight.enabled', true) && class_exists(Inertia::class)) {
+        if (config('force10.enabled', true) && config('force10.preflight.enabled', true) && class_exists(Inertia::class)) {
             Inertia::share('_force10', function () {
                 $checker = app(PreflightChecker::class);
                 $middleware = $this->getAllManifestMiddleware();

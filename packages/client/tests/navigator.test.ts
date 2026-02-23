@@ -200,6 +200,27 @@ describe('navigator', () => {
     expect(navigator.shouldOptimisticallyNavigate(match)).toBe(true);
   });
 
+  it('skips optimistic nav for auth:sanctum routes when not authenticated', () => {
+    (globalThis as any).window = {
+      history: { state: { page: { component: 'Login', url: '/login', props: { auth: { user: null } } } } },
+      location: { origin: 'http://localhost' },
+    };
+
+    const match = makeMatch({
+      route: { pattern: '/dashboard', component: 'Dashboard', middleware: ['auth:sanctum'], parameters: [] },
+    });
+    const navigator = createNavigator(makeCache(), makeConfig());
+    expect(navigator.shouldOptimisticallyNavigate(match)).toBe(false);
+  });
+
+  it('allows optimistic nav for auth:sanctum routes when authenticated', () => {
+    const match = makeMatch({
+      route: { pattern: '/dashboard', component: 'Dashboard', middleware: ['auth:sanctum'], parameters: [] },
+    });
+    const navigator = createNavigator(makeCache(), makeConfig());
+    expect(navigator.shouldOptimisticallyNavigate(match)).toBe(true);
+  });
+
   it('falls through to auth check when preflight returns null', () => {
     // Preflight has no opinion, but auth check should still work
     const preflight = makePreflight(null);

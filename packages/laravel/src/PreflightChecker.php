@@ -12,13 +12,17 @@ class PreflightChecker
 
     public function __construct()
     {
-        $this->register('auth', fn (Request $r) => ['pass' => auth()->check()]);
+        $this->register('auth', function (Request $r, ?string $guard = null) {
+            return ['pass' => auth($this->resolveGuard($guard))->check()];
+        });
 
-        $this->register('guest', fn (Request $r) => ['pass' => !auth()->check()]);
+        $this->register('guest', function (Request $r, ?string $guard = null) {
+            return ['pass' => !auth($this->resolveGuard($guard))->check()];
+        });
 
-        $this->register('verified', fn (Request $r) => [
-            'pass' => auth()->user()?->hasVerifiedEmail() ?? false,
-        ]);
+        $this->register('verified', function (Request $r, ?string $guard = null) {
+            return ['pass' => auth($this->resolveGuard($guard))->user()?->hasVerifiedEmail() ?? false];
+        });
 
         $this->register('password.confirm', function (Request $r) {
             $confirmedAt = session('auth.password_confirmed_at');
@@ -32,6 +36,20 @@ class PreflightChecker
 
             return ['pass' => time() < $expiresAt, 'expiresAt' => $expiresAt];
         });
+    }
+
+    /**
+     * Resolve a guard name, falling back to default if the guard isn't configured.
+     */
+    protected function resolveGuard(?string $guard): ?string
+    {
+        if ($guard === null) {
+            return null;
+        }
+
+        $guards = config('auth.guards', []);
+
+        return isset($guards[$guard]) ? $guard : null;
     }
 
     public function register(string $middleware, Closure $evaluator): void
@@ -51,9 +69,10 @@ class PreflightChecker
 
         foreach (array_unique($manifestMiddleware) as $mw) {
             $name = Str::before($mw, ':');
+            $params = Str::contains($mw, ':') ? Str::after($mw, ':') : null;
 
             if (isset($this->evaluators[$name])) {
-                $results[$mw] = ($this->evaluators[$name])($request);
+                $results[$mw] = ($this->evaluators[$name])($request, $params);
             }
         }
 

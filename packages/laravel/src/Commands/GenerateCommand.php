@@ -17,6 +17,11 @@ class GenerateCommand extends Command
 
     public function handle(): int
     {
+        if (! config('force10.enabled', true)) {
+            $this->warn('Force10 is disabled. Set FORCE10_ENABLED=true to enable.');
+            return self::SUCCESS;
+        }
+
         $resolver = $this->laravel->make(ComponentResolver::class);
         $scanner = $this->laravel->make(RouteScanner::class, [
             'resolver' => $resolver,

@@ -63,7 +63,8 @@ export function createNavigator(cache: Force10Cache, config: Force10Config, pref
     }
 
     // Fallback: auth check from page props (covers case where preflight data hasn't loaded yet)
-    if (match.route.middleware.includes('auth')) {
+    // Match 'auth' and guarded variants like 'auth:sanctum'
+    if (match.route.middleware.some(mw => mw === 'auth' || mw.startsWith('auth:'))) {
       const currentPage = typeof window !== 'undefined' ? window.history.state?.page : undefined;
       const authProps = (currentPage?.props as any)?.auth;
       const user = authProps?.user;

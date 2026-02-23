@@ -277,15 +277,15 @@ interface Force10Config {
 
 ## Tests
 
-### Unit Tests (81 total)
+### Unit Tests (121 total)
 
 ```bash
 # Run all tests from project root
 bun run test
 
 # Or individually:
-bun run test:client   # Vitest — 55 tests
-bun run test:php      # Pest — 26 tests
+bun run test:client   # Vitest — 79 tests
+bun run test:php      # Pest — 42 tests
 ```
 
 | Module | Tests |
@@ -293,12 +293,14 @@ bun run test:php      # Pest — 26 tests
 | config.ts | 3 |
 | cache.ts | 9 |
 | matcher.ts | 11 |
-| navigator.ts | 11 |
-| patch.ts | 21 |
+| navigator.ts | 16 |
+| preflight.ts | 8 |
+| patch.ts | 32 |
 | RouteScanner.php | 5 |
 | ComponentResolver.php | 8 |
 | ManifestWriter.php | 5 |
 | Force10CacheControl.php | 3 |
+| PreflightChecker.php | 16 |
 | PreloadTagGenerator.php | 5 |
 
 ### Browser Tests (Playwright)

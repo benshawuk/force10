@@ -1,10 +1,10 @@
 import type { Plugin, ResolvedConfig, ViteDevServer } from 'vite';
-import { execSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 export interface Force10ViteOptions {
-  /** Path to output the generated manifest file */
+  /** Path where the generated manifest file is written and read */
   manifestPath?: string;
   /** File patterns to watch for changes (glob) */
   watch?: string[];
@@ -74,9 +74,9 @@ function generatePreloadCode(
   return `\n_manifest.preload = function() {\n${imports.join('\n')}\n};\n`;
 }
 
-function generateManifest(root: string): boolean {
+function generateManifest(root: string, manifestPath: string): boolean {
   try {
-    const output = execSync('php artisan force10:generate', {
+    const output = execFileSync('php', ['artisan', 'force10:generate', `--path=${manifestPath}`], {
       cwd: root,
       encoding: 'utf-8',
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -85,7 +85,7 @@ function generateManifest(root: string): boolean {
     // Extract route count from artisan output (e.g. "Generated 12 routes to ...")
     const match = output.match(/(\d+)\s+routes?/);
     const count = match ? match[1] : '?';
-    console.log(`[force10] Manifest generated (${count} routes)`);
+    console.log(`[force10] Manifest generated (${count} routes): ${manifestPath}`);
     return true;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -125,7 +125,7 @@ export default function force10(options?: Force10ViteOptions): Plugin {
     },
 
     buildStart() {
-      generateManifest(root);
+      generateManifest(root, manifestPath);
     },
 
     configureServer(server: ViteDevServer) {
@@ -154,7 +154,7 @@ export default function force10(options?: Force10ViteOptions): Plugin {
         }
 
         debounceTimer = setTimeout(() => {
-          const success = generateManifest(root);
+          const success = generateManifest(root, manifestPath);
           if (success) {
             // Trigger HMR full-reload so the virtual module is re-evaluated
             server.ws.send({ type: 'full-reload', path: '*' });

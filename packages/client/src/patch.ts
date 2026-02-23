@@ -2,6 +2,11 @@ import { router } from '@inertiajs/core';
 import type { Force10Cache, Force10Config, Force10Matcher, Force10Navigator, Force10Patch, Force10Preflight } from './types';
 import { log } from './debug';
 
+function stripHash(url: string): string {
+  const hashIndex = url.indexOf('#');
+  return hashIndex === -1 ? url : url.slice(0, hashIndex);
+}
+
 export function applyPatch(
   navigator: Force10Navigator,
   matcher: Force10Matcher,
@@ -9,6 +14,7 @@ export function applyPatch(
   config: Force10Config,
   preflight?: Force10Preflight,
 ): Force10Patch {
+  const suppressProgress = config.loading.suppressProgress;
   const originalVisit = router.visit;
   let cancelPendingBackground: (() => void) | null = null;
 
@@ -23,43 +29,53 @@ export function applyPatch(
       cancelPendingBackground();
     }
 
-    // Extract the URL path string from href
-    let urlPath: string;
+    // Normalize href into an internal URL key:
+    // - Keep query strings (distinct cache entries)
+    // - Drop hash fragments (anchors should not change cache keys)
+    // - Convert same-origin absolute URLs to path+search
+    let matchUrl: string;
 
     if (href instanceof URL) {
-      urlPath = href.pathname;
+      const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
+      if (currentOrigin && href.origin !== currentOrigin) {
+        log(`SKIP: external URL: ${href.origin} !== ${currentOrigin}`);
+        return originalVisit.call(router, href, options);
+      }
+      matchUrl = `${href.pathname}${href.search}`;
     } else {
-      urlPath = href;
+      matchUrl = href;
     }
 
     // Skip: hash-only navigation
-    if (typeof urlPath === 'string' && urlPath.startsWith('#')) {
-      log(`SKIP: hash-only navigation: ${urlPath}`);
-      return originalVisit.call(router, href, options);
-    }
-
-    // Skip: same-page navigation
-    const currentPageUrl = typeof window !== 'undefined' ? window.history.state?.page?.url : undefined;
-    if (urlPath === currentPageUrl) {
-      log(`SKIP: same-page navigation: ${urlPath} === ${currentPageUrl}`);
+    if (matchUrl.startsWith('#')) {
+      log(`SKIP: hash-only navigation: ${matchUrl}`);
       return originalVisit.call(router, href, options);
     }
 
     // Skip: external URLs (different origin)
-    if (typeof urlPath === 'string' && (urlPath.startsWith('http://') || urlPath.startsWith('https://'))) {
+    if (matchUrl.startsWith('http://') || matchUrl.startsWith('https://')) {
       try {
-        const parsedUrl = new URL(urlPath);
+        const parsedUrl = new URL(matchUrl);
         const currentOrigin = typeof window !== 'undefined' ? window.location.origin : '';
         if (parsedUrl.origin !== currentOrigin) {
           log(`SKIP: external URL: ${parsedUrl.origin} !== ${currentOrigin}`);
           return originalVisit.call(router, href, options);
         }
-        // Same origin absolute URL - extract pathname for matching
-        urlPath = parsedUrl.pathname;
+        // Same origin absolute URL: keep path + query
+        matchUrl = `${parsedUrl.pathname}${parsedUrl.search}`;
       } catch {
-        log(`SKIP: invalid URL: ${urlPath}`);
+        log(`SKIP: invalid URL: ${matchUrl}`);
         return originalVisit.call(router, href, options);
       }
+    }
+
+    matchUrl = stripHash(matchUrl);
+
+    // Skip: same-page navigation
+    const currentPageUrl = typeof window !== 'undefined' ? window.history.state?.page?.url : undefined;
+    if (matchUrl === stripHash(currentPageUrl ?? '')) {
+      log(`SKIP: same-page navigation: ${matchUrl} === ${currentPageUrl}`);
+      return originalVisit.call(router, href, options);
     }
 
     // Skip: non-GET requests
@@ -68,14 +84,20 @@ export function applyPatch(
       return originalVisit.call(router, href, options);
     }
 
-    // Skip: URL not in manifest
-    const match = matcher.match(urlPath);
-    if (!match) {
-      log(`SKIP: no manifest match for: ${urlPath}`);
+    // Skip: URL explicitly excluded by config
+    if (matcher.isExcluded(matchUrl)) {
+      log(`SKIP: excluded by config: ${matchUrl}`);
       return originalVisit.call(router, href, options);
     }
 
-    log(`MATCH: ${urlPath} → ${match.route.component}`, { params: match.params, middleware: match.route.middleware });
+    // Skip: URL not in manifest
+    const match = matcher.match(matchUrl);
+    if (!match) {
+      log(`SKIP: no manifest match for: ${matchUrl}`);
+      return originalVisit.call(router, href, options);
+    }
+
+    log(`MATCH: ${matchUrl} → ${match.route.component}`, { params: match.params, middleware: match.route.middleware });
 
     // Skip: navigator says we shouldn't optimistically navigate (e.g., auth check)
     if (!navigator.shouldOptimisticallyNavigate(match)) {
@@ -118,7 +140,7 @@ export function applyPatch(
       ...options,
       async: true,
       replace: true,
-      showProgress: false,
+      showProgress: !suppressProgress,
       onSuccess: (page: any) => {
         log(`SUCCESS: server responded for ${page.url}`, { component: page.component, propKeys: Object.keys(page.props || {}) });
 
