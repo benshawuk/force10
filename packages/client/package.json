@@ -1,6 +1,6 @@
 {
   "name": "@force10/client",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Force10 client — instant Inertia.js navigations",
   "license": "MIT",
   "author": "Ben Shaw",
